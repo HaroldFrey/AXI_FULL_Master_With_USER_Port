@@ -44,14 +44,14 @@ module fifo_async #(
     //===================================================================
     // 写侧 (wr_clk 域)
     //===================================================================
-    reg  [PTR_WIDTH-1:0] wr_ptr_bin;          // 二进制写指针
-    reg  [PTR_WIDTH-1:0] wr_ptr_gray;         // 格雷码写指针
+    reg  [PTR_WIDTH-1:0] wr_ptr_bin    = 0;   // 二进制写指针
+    reg  [PTR_WIDTH-1:0] wr_ptr_gray   = 0;   // 格雷码写指针
     wire [PTR_WIDTH-1:0] wr_ptr_bin_next;
     wire [PTR_WIDTH-1:0] wr_ptr_gray_next;
 
     // 同步后的读指针 (来自 rd_clk 域)
-    reg  [PTR_WIDTH-1:0] rd_ptr_gray_sync1;
-    reg  [PTR_WIDTH-1:0] rd_ptr_gray_sync2;
+    reg  [PTR_WIDTH-1:0] rd_ptr_gray_sync1 = 0;
+    reg  [PTR_WIDTH-1:0] rd_ptr_gray_sync2 = 0;
     wire [PTR_WIDTH-1:0] rd_ptr_gray_synced;
     wire [PTR_WIDTH-1:0] rd_ptr_bin_synced;
 
@@ -101,14 +101,14 @@ module fifo_async #(
     //===================================================================
     // 读侧 (rd_clk 域)
     //===================================================================
-    reg  [PTR_WIDTH-1:0] rd_ptr_bin;           // 二进制读指针
-    reg  [PTR_WIDTH-1:0] rd_ptr_gray;          // 格雷码读指针
+    reg  [PTR_WIDTH-1:0] rd_ptr_bin    = 0;    // 二进制读指针
+    reg  [PTR_WIDTH-1:0] rd_ptr_gray   = 0;    // 格雷码读指针
     wire [PTR_WIDTH-1:0] rd_ptr_bin_next;
     wire [PTR_WIDTH-1:0] rd_ptr_gray_next;
 
     // 同步后的写指针 (来自 wr_clk 域)
-    reg  [PTR_WIDTH-1:0] wr_ptr_gray_sync1;
-    reg  [PTR_WIDTH-1:0] wr_ptr_gray_sync2;
+    reg  [PTR_WIDTH-1:0] wr_ptr_gray_sync1 = 0;
+    reg  [PTR_WIDTH-1:0] wr_ptr_gray_sync2 = 0;
     wire [PTR_WIDTH-1:0] wr_ptr_gray_synced;
     wire [PTR_WIDTH-1:0] wr_ptr_bin_synced;
 
@@ -145,25 +145,26 @@ module fifo_async #(
     //===================================================================
     // FWFT 输出寄存器 (rd_clk 域)
     //===================================================================
-    reg  [DATA_WIDTH-1:0] fwft_dout;
-    reg                    fwft_valid;
+    reg  [DATA_WIDTH-1:0] fwft_dout  = 0;
+    reg                    fwft_valid = 0;
 
     always @(posedge rd_clk) begin
-        if (fwft_valid && rd_en && std_empty) begin
+        if (fwft_valid && rd_en && (std_empty || (rd_ptr_gray_next == wr_ptr_gray_synced))) begin
             // 读走最后一笔 → 变为空
+            // std_empty: 指针已追平; 第二个判据: 同步滞后期间, 弹出后指针将追平
+            // 写指针 → 同样视为最后一笔, 避免残留 X 幻影字
             fwft_valid <= 1'b0;
         end else if (!fwft_valid && !std_empty) begin
             // 内部 FIFO 有新数据 → 预取首字
             fwft_dout  <= ram_dout;
             fwft_valid <= 1'b1;
-        end else if (fwft_valid && rd_en && !std_empty) begin
-            // 读走当前, 还有下一笔 → 更新
-            fwft_dout  <= ram_dout;
+        end else if (fwft_valid && rd_en) begin
+            // 读走当前, 还有下一笔 → 预取新指针处的下一笔
+            // (修复: 用旧指针 ram_dout 会导致每个字输出两次且最后一字丢失)
+            fwft_dout  <= mem[rd_ptr_bin_next[ADDR_WIDTH-1:0]];
             fwft_valid <= 1'b1;
-        end else if (fwft_valid && !rd_en && !std_empty) begin
-            // 不读, 内部有数据且 fwft 有数据: 保持
-            fwft_valid <= fwft_valid;
         end
+        // 其余情况 (fwft 有数据但不读): 寄存器保持
     end
 
     //===================================================================

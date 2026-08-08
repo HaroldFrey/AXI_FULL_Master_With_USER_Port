@@ -55,7 +55,7 @@ module axi_wr_master #(
     // W Channel
     output  wire    [C_M_AXI_DATA_WIDTH-1 : 0]          M_AXI_WDATA     ,
     output          [C_M_AXI_DATA_WIDTH/8-1 : 0]        M_AXI_WSTRB     ,
-    output  reg                                         M_AXI_WLAST     ,
+    output                                              M_AXI_WLAST     ,
     output          [C_M_AXI_WUSER_WIDTH-1 : 0]         M_AXI_WUSER     ,
     output  reg                                         M_AXI_WVALID    ,
     input                                               M_AXI_WREADY    ,
@@ -74,6 +74,7 @@ module axi_wr_master #(
     localparam          IDLE        = 1'b0;
     localparam          WRITE       = 1'b1;
     localparam          SIZE        = clogb2(C_M_AXI_DATA_WIDTH/8-1);
+    localparam          WSTRB_WIDTH = C_M_AXI_DATA_WIDTH/8;   // 便于 iverilog 编译
 
     function integer clogb2(input integer depth); begin
         if (depth == 0)
@@ -141,7 +142,7 @@ module axi_wr_master #(
     assign M_AXI_AWQOS   = 4'd0;
     assign M_AXI_AWUSER  = user_awuser;
     assign M_AXI_WUSER   = user_wuser;
-    assign M_AXI_WSTRB   = {{C_M_AXI_DATA_WIDTH/8}{1'b1}};
+    assign M_AXI_WSTRB   = {{WSTRB_WIDTH}{1'b1}};
 
     //===================================================================
     // AWADDR — wr_start 时锁存, 写完成后偏移
@@ -189,37 +190,20 @@ module axi_wr_master #(
     assign M_AXI_WDATA = data_rd_en ? wr_data_in : {C_M_AXI_DATA_WIDTH{1'b0}};
 
     //===================================================================
-    // WVALID — FIFO 空时自动拉低反压
+    // WVALID — 组合逻辑: 仅当 FIFO 非空且突发未完成时有效
+    // (修复: 原寄存器版本在 FIFO 变空后滞后一拍才拉低, 该拍 WVALID 仍为 1
+    //  但 data_rd_en=0 → WDATA=0, 从机会握手到一个无数据的假拍, 造成
+    //  数据错位并在数据流中插入 0)
     //===================================================================
-    always @(posedge M_AXI_ACLK) begin
-        if (M_AXI_ARESETN == 1'b0) begin
-            M_AXI_WVALID <= 1'b0;
-        end else if ((wr_cnt == wr_len_latched-1) && (M_AXI_WVALID & M_AXI_WREADY)) begin
-            M_AXI_WVALID <= 1'b0;
-        end else if (wr_fifo_empty == 1'b1) begin
-            M_AXI_WVALID <= 1'b0;
-        end else if ((wr_fifo_empty == 1'b0) & (state == WRITE)) begin
-            M_AXI_WVALID <= 1'b1;
-        end
-    end
+    assign M_AXI_WVALID = (state == WRITE) && (wr_fifo_empty == 1'b0) && (wr_cnt != wr_len_latched);
 
     //===================================================================
-    // WLAST — 多拍预测 + 单拍特判
+    // WLAST — 组合逻辑: 最后一拍 (wr_cnt == len-1) 时为 1
+    // (重构: 原寄存器预测方案依赖提前一拍置位, 与 WVALID 的时序耦合,
+    //  在单拍突发或反压场景下易产生 WLAST 提前/残留/丢失等问题;
+    //  组合逻辑天然在最后一拍有效, 与反压/单拍/多拍均兼容)
     //===================================================================
-    always @(posedge M_AXI_ACLK) begin
-        if (M_AXI_ARESETN == 1'b0) begin
-            M_AXI_WLAST <= 1'b0;
-        end else if (state == WRITE && wr_cnt == 0 && wr_len_latched == 1 && wr_fifo_empty == 1'b0) begin
-            M_AXI_WLAST <= 1'b1;   // 单拍突发: 立即置位
-        end else if (M_AXI_WVALID & M_AXI_WREADY) begin
-            if (wr_cnt == wr_len_latched - 1)
-                M_AXI_WLAST <= 1'b0;
-            else if (wr_cnt == wr_len_latched - 2)
-                M_AXI_WLAST <= 1'b1;
-        end else begin
-            M_AXI_WLAST <= 1'b0;
-        end
-    end
+    assign M_AXI_WLAST = (state == WRITE) && (wr_cnt == wr_len_latched - 1);
 
     //===================================================================
     // BREADY — 写完成后等待响应

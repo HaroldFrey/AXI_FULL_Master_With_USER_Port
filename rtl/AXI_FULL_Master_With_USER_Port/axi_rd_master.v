@@ -100,7 +100,9 @@ module axi_rd_master #(
                         state <= IDLE;
                 end
                 READ: begin
-                    if (M_AXI_RLAST && M_AXI_RVALID)
+                    // 最后一拍握手完成后才退出 (修复: 单拍读时 RLAST 首拍即置位,
+                    // 若 RREADY 尚未拉高, 无握手判定会导致 FSM 提前退出且数据丢失)
+                    if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY)
                         state <= IDLE;
                     else
                         state <= READ;
@@ -165,8 +167,8 @@ module axi_rd_master #(
     always @(posedge M_AXI_ACLK) begin
         if (M_AXI_ARESETN == 1'b0) begin
             rd_data_flag <= 1'b0;
-        end else if (M_AXI_RLAST && M_AXI_RVALID) begin
-            rd_data_flag <= 1'b0;
+        end else if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY) begin
+            rd_data_flag <= 1'b0;   // 最后一拍握手完成后清除
         end else if (M_AXI_ARREADY & M_AXI_ARVALID) begin
             rd_data_flag <= 1'b1;
         end else begin
@@ -181,7 +183,9 @@ module axi_rd_master #(
         if (M_AXI_ARESETN == 1'b0) begin
             M_AXI_RREADY <= 1'b0;
         end else if (rd_fifo_full == 1'b0) begin
-            if (M_AXI_RLAST) begin
+            // 仅当最后一拍握手完成才关闭 RREADY (修复: 单拍读时 RLAST 首拍即置位,
+            // 若在 RREADY=0 时提前关闭, RREADY 将永远无法再拉高 → 读通道死锁)
+            if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY) begin
                 M_AXI_RREADY <= 1'b0;
             end else if (rd_data_flag) begin
                 M_AXI_RREADY <= 1'b1;

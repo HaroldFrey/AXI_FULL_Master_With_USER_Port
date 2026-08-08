@@ -36,6 +36,13 @@
 | #14 | 🔴 严重 | `axi_full_master.v:111,117-119` | clogb2(0) 返回 1，DATA_WIDTH=8 时 AxSIZE 错误（声明2字节/拍） | 🟢 已解决 |
 | #15 | 🟡 中等 | `axi_full_master.v:247-253` | WVALID 在突发中未检查 FIFO 空，时钟不匹配时写入垃圾数据 | 🟢 已解决 |
 | #16 | 🔵 低 | `axi_wr_master.v:35` | wr_data_vld 端口未使用 | 🟢 已解决 |
+| #17 | 🔵 低 | `axi_wr_master.v:145` | WSTRB 拼接计数使用除法，iverilog 无法编译 | 🟢 已解决 |
+| #18 | 🟡 中等 | `fifo_async.v:47 等` | 内部寄存器无复位/初始化，仿真初始为 X 导致 FIFO 失效 | 🟢 已解决 |
+| #19 | 🔴 严重 | `fifo_async.v:164` | FWFT 弹出用旧指针预取，每个字输出两次且最后一字丢失 | 🟢 已解决 |
+| #20 | 🟡 中等 | `fifo_async.v:152` | FWFT 同步滞后产生"幻影字"，X 残留污染下次读事务 | 🟢 已解决 |
+| #21 | 🔴 严重 | `axi_rd_master.v:105,170,188` | RREADY 被 RLAST 提前关闭，单拍读事务死锁 | 🟢 已解决 |
+| #22 | 🔴 严重 | `axi_wr_master.v:206` | WLAST 预测方案时序脆弱：残留污染下一事务 / 反压期间丢失 | 🟢 已解决 |
+| #23 | 🔴 严重 | `axi_wr_master.v:198` | WVALID 空拍滞后一拍，从机握手到无数据假拍 | 🟢 已解决 |
 
 ---
 
@@ -958,6 +965,251 @@ else if((wr_cnt == wr_len_latched-1) && (M_AXI_WVALID & M_AXI_WREADY))
 
 ---
 
+### 17 WSTRB 拼接计数使用除法，iverilog 无法编译
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #17 |
+| **严重度** | 🔵 低 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [axi_wr_master.v:145](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L145) |
+
+#### 问题描述
+
+`assign M_AXI_WSTRB = {{C_M_AXI_DATA_WIDTH/8}{1'b1}};` 的复制操作符计数表达式中使用除法，iverilog 报错 `Concatenation operand "(C_M_AXI_DATA_WIDTH)/('sd8)" has indefinite width`，整个工程无法用 iverilog 编译（Vivado / Questa 可正常编译）。
+
+#### 后果
+
+开源工具链（iverilog）无法编译工程，阻碍开源环境下的验证。
+
+#### 修复方案
+
+引入 localparam 使复制计数具有确定宽度：
+
+```verilog
+localparam          WSTRB_WIDTH = C_M_AXI_DATA_WIDTH/8;
+assign M_AXI_WSTRB   = {{WSTRB_WIDTH}{1'b1}};
+```
+
+#### 解决记录
+
+已修改 [axi_wr_master.v:77,145](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L77)，iverilog 编译通过。
+
+---
+
+### 18 fifo_async.v 内部寄存器无复位/初始化，仿真初始为 X 导致 FIFO 完全失效
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #18 |
+| **严重度** | 🟡 中等 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [fifo_async.v:47 等](../rtl/FIFO/fifo_async.v#L47) |
+
+#### 问题描述
+
+FIFO 的写/读指针、两级同步器、`fwft_valid` / `fwft_dout` 既无复位端口也无初始化。RTL 仿真器（iverilog / Questa）中寄存器初值为 X → `full` / `empty` 恒为 X → 写条件 `wr_en && !full` 恒为假 → 数据永远进不了 FIFO，写通道永远发不出 W 数据。
+
+#### 后果
+
+仿真卡死（写事务超时）。FPGA 上寄存器上电为 0，硬件行为正常，属于仿真与硬件行为的一致性缺口。
+
+#### 修复方案
+
+全部内部寄存器声明时初始化为 0（指针从 0 开始即初始为空状态，与 FPGA 上电行为一致）：
+
+```verilog
+reg  [PTR_WIDTH-1:0] wr_ptr_bin    = 0;
+reg  [PTR_WIDTH-1:0] rd_ptr_bin    = 0;
+reg  [PTR_WIDTH-1:0] wr_ptr_gray_sync1 = 0;
+...
+reg                    fwft_valid = 0;
+```
+
+#### 解决记录
+
+已修改 [fifo_async.v](../rtl/FIFO/fifo_async.v)，全部内部寄存器声明时初始化，仿真恢复正常。
+
+---
+
+### 19 fifo_async.v FWFT 弹出用旧指针预取，每个字输出两次且最后一字丢失
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #19 |
+| **严重度** | 🔴 严重 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [fifo_async.v:164](../rtl/FIFO/fifo_async.v#L164) |
+
+#### 问题描述
+
+FWFT 模式弹出时 `fwft_dout <= ram_dout`，而 `ram_dout` 使用弹出前的旧指针 → 装入的仍是刚被消费的字 → 每个字在 dout 上停留 2 拍（重复输出一次），最后一个字永远发不出。
+
+#### 后果
+
+数据流中每个字重复一次、最后一字丢失，读写数据全部错位。
+
+#### 修复方案
+
+弹出时预取新指针处的下一字：
+
+```verilog
+fwft_dout  <= mem[rd_ptr_bin_next[ADDR_WIDTH-1:0]];
+```
+
+#### 解决记录
+
+已修改 [fifo_async.v:164](../rtl/FIFO/fifo_async.v#L164)，数据逐字正确输出。
+
+---
+
+### 20 fifo_async.v FWFT 同步滞后产生"幻影字"，X 残留污染下次读事务
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #20 |
+| **严重度** | 🟡 中等 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [fifo_async.v:152](../rtl/FIFO/fifo_async.v#L152) |
+
+#### 问题描述
+
+指针同步器滞后 2 拍，最后一字弹出时 `std_empty` 仍为 0，走"弹出并预取"分支 → 把空内存位置的 X 预取进 `fwft_dout` 且 `fwft_valid` 不落 → 该 X 幻影字残留，下一个读事务首拍直接读到 X。
+
+#### 后果
+
+连续读事务时下一事务首字为 X（数据错误）。
+
+#### 修复方案
+
+最后一字判定增加"弹出后指针将追平写指针"判据：
+
+```verilog
+if (fwft_valid && rd_en && (std_empty || (rd_ptr_gray_next == wr_ptr_gray_synced)))
+    fwft_valid <= 1'b0;
+```
+
+#### 解决记录
+
+已修改 [fifo_async.v:152](../rtl/FIFO/fifo_async.v#L152)，连续读事务数据正确。
+
+---
+
+### 21 axi_rd_master.v RREADY 被 RLAST 提前关闭，单拍读事务死锁
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #21 |
+| **严重度** | 🔴 严重 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [axi_rd_master.v:105,170,188](../rtl/AXI_FULL_Master_With_USER_Port/axi_rd_master.v#L105) |
+
+#### 问题描述
+
+单拍读（len=1）时从机 `rlast` 为组合逻辑、第一拍即置位。原 RREADY 逻辑 `if (RLAST) RREADY<=0` 在 RREADY 尚未拉高（`rd_data_flag` 刚置位）时将其关闭；同时 `rd_data_flag` 被 `RLAST && RVALID` 清除 → RREADY 永远无法再拉高 → 读通道永久死锁。多拍读因 RLAST 只在最后一拍出现、此时 RREADY 已为 1 而幸免。
+
+#### 后果
+
+单拍读事务挂死（仿真超时）；FIFO 满反压时最后一拍同样存在死锁风险。
+
+#### 修复方案
+
+FSM 退出、`rd_data_flag` 清除、RREADY 关闭三处判定均改为握手感知：
+
+```verilog
+// FSM: 最后一拍握手完成后退出
+if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY) state <= IDLE;
+// rd_data_flag: 握手完成后清除
+else if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY) rd_data_flag <= 1'b0;
+// RREADY: 握手完成后关闭
+if (M_AXI_RLAST && M_AXI_RVALID && M_AXI_RREADY) M_AXI_RREADY <= 1'b0;
+```
+
+#### 解决记录
+
+已修改 [axi_rd_master.v](../rtl/AXI_FULL_Master_With_USER_Port/axi_rd_master.v) 三处判定，单拍读事务正常完成。
+
+---
+
+### 22 axi_wr_master.v WLAST 预测方案时序脆弱：残留污染下一事务 / 反压期间丢失
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #22 |
+| **严重度** | 🔴 严重 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [axi_wr_master.v:206](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L206) |
+
+#### 问题描述
+
+原 WLAST 为寄存器预测方案（倒数第二拍握手时置位、最后一拍清零），存在两个缺陷：
+
+1. **残留**：单拍突发特判分支优先级高于握手清除分支，WLAST 置位后永不回 0 → 残留的 WLAST=1 污染下一事务首拍，从机把首拍误当最后一拍 → 后续数据全部丢弃；
+2. **丢失**：WVALID 因 FIFO 空反压拉低期间若执行 `else WLAST<=0` 清除，则最后一拍到达时 WLAST=0，从机永远等不到 wlast → 写事务死锁。
+
+#### 后果
+
+连续写事务数据丢失或写死锁。
+
+#### 修复方案
+
+WLAST 改为组合逻辑，最后一拍（`wr_cnt == len-1`）天然为 1，与反压、单拍、多拍均兼容：
+
+```verilog
+assign M_AXI_WLAST = (state == WRITE) && (wr_cnt == wr_len_latched - 1);
+```
+
+#### 解决记录
+
+已修改 [axi_wr_master.v:206](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L206)，连续写事务（含单拍、反压）均正确完成。
+
+---
+
+### 23 axi_wr_master.v WVALID 空拍滞后一拍，从机握手到无数据假拍
+
+| 属性 | 内容 |
+|------|------|
+| **编号** | #23 |
+| **严重度** | 🔴 严重 |
+| **状态** | 🟢 已解决 |
+| **发现日期** | 2026-08-08 |
+| **解决日期** | 2026-08-08 |
+| **位置** | [axi_wr_master.v:198](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L198) |
+
+#### 问题描述
+
+原 WVALID 为寄存器输出，FIFO 变空后滞后一拍才拉低。该滞后拍 WVALID 仍为 1，但 `data_rd_en=0` → `WDATA=0`，从机握手到一个无数据的假拍并写入 0x00，真正的数据被推到下一拍 → 数据错位并在数据流中插入 0。用户写反压场景（每拍之间 FIFO 变空）必现。
+
+#### 后果
+
+写数据流中插入 0、数据错位，读回校验失败。
+
+#### 修复方案
+
+WVALID 改为组合逻辑，FIFO 空时立即无效：
+
+```verilog
+assign M_AXI_WVALID = (state == WRITE) && (wr_fifo_empty == 1'b0) && (wr_cnt != wr_len_latched);
+```
+
+#### 解决记录
+
+已修改 [axi_wr_master.v:198](../rtl/AXI_FULL_Master_With_USER_Port/axi_wr_master.v#L198)，写反压场景数据逐字正确。
+
+---
+
 ## 变更记录
 
 | 日期 | 变更内容 |
@@ -973,3 +1225,4 @@ else if((wr_cnt == wr_len_latched-1) && (M_AXI_WVALID & M_AXI_WREADY))
 | 2026-07-23 | #16 修复完成。新增 `fifo_async.v`（FWFT/Standard 双模式），替换 Vivado FIFO IP。Data_RX/Data_TX 实例化更新。 |
 | 2026-07-23 | v3 突发类型扩展：支持 FIXED/INCR/WRAP。新增 `user_wr/rd_burst_type` 端口，默认 INCR 向后兼容。 |
 | 2026-07-23 | 新增错误响应处理（BRESP/RRESP 检测，`user_wr/rd_error` 输出）。USER 端口可配置（AWUSER/WUSER/ARUSER）。 |
+| 2026-08-08 | 使用 iverilog + 简单测试平台（sim/tb_axi_master_simple.sv）验证基本功能，新增 #17 ~ #23 共 7 个问题，全部修复并通过验证（VCD 解析脚本 sim/check_vcd.py 复核通过）。 |
