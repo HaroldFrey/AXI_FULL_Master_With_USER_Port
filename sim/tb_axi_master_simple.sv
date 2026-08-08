@@ -412,6 +412,10 @@ module tb_axi_master_simple;
         else
             $display(" 结果    : %0d 个错误", err_cnt);
         $display("==============================================");
+
+        // 全部测试完成后, 再空跑一小段时间再结束,
+        // 便于在波形上观察最终状态 (时钟继续, 信号保持)
+        repeat (100) @(posedge clk_axi);
         $finish;
     end
 
