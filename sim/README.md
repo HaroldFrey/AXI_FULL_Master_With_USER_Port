@@ -13,6 +13,18 @@
 | `check_vcd.py` | 解析 VCD 波形、独立判断仿真是否成功的脚本（仅用 Python 标准库） |
 | `tb_axi_master_simple.out` | iverilog 编译产物（可重新生成） |
 | `tb_axi_master_simple.vcd` | 仿真波形文件（可重新生成） |
+| `run_sim.sh` | 一键脚本：编译 → 仿真 → 波形检查 → 打开 gtkwave |
+
+---
+
+## 零、一键脚本（推荐）
+
+```bash
+cd D:\Stduy\AXI_FULL_Master_With_USER_Port\sim
+./run_sim.sh              # 一键完成编译 + 仿真 + 波形检查 + 打开波形
+./run_sim.sh --no-check   # 跳过波形检查
+./run_sim.sh --no-gui     # 不自动打开 gtkwave
+```
 
 ---
 
