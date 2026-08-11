@@ -57,7 +57,7 @@ module axi_wr_master #(
     output          [C_M_AXI_DATA_WIDTH/8-1 : 0]        M_AXI_WSTRB     ,
     output                                              M_AXI_WLAST     ,
     output          [C_M_AXI_WUSER_WIDTH-1 : 0]         M_AXI_WUSER     ,
-    output  reg                                         M_AXI_WVALID    ,
+    output                                              M_AXI_WVALID    ,
     input                                               M_AXI_WREADY    ,
 
     // B Channel
@@ -99,7 +99,6 @@ module axi_wr_master #(
     always @(posedge M_AXI_ACLK) begin
         if (M_AXI_ARESETN == 1'b0) begin
             state           <= IDLE;
-            wr_len_latched  <= 0;
         end else begin
             case (state)
                 IDLE: begin
@@ -123,7 +122,10 @@ module axi_wr_master #(
     // 长度 / 突发类型锁存
     //===================================================================
     always @(posedge M_AXI_ACLK) begin
-        if (wr_start) begin
+        if (M_AXI_ARESETN == 1'b0) begin
+            wr_len_latched   <= 0;   // 复位合并到本块, 避免跨 always 多驱动 (综合报 multi-driven)
+            wr_burst_latched <= 2'b01;  // 默认 INCR
+        end else if (wr_start) begin
             wr_len_latched   <= wr_len_in;
             wr_burst_latched <= (wr_burst_type === 2'bxx) ? 2'b01 : wr_burst_type;
         end

@@ -39,7 +39,7 @@ assign fifo_rd_en = (data_rd_en) ? 1'b1 : 1'b0 ;
 
 // FWFT 异步 FIFO (等效 Vivado FIFO Generator IP)
 fifo_async #(
-    .MODE       ("FWFT"),
+    .MODE       (0),           // 0=FWFT
     .DATA_WIDTH (C_M_AXI_DATA_WIDTH),
     .DEPTH      (32),
     .ADDR_WIDTH (5)

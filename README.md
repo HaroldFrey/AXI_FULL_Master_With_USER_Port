@@ -50,13 +50,19 @@
 │   ├── axi_slave_bfm.sv                      # AXI Slave BFM
 │   ├── tb_pkg.sv                             # 公共参数 / 时钟场景 / Scoreboard
 │   └── run_sim.sh                            # iverilog 一键仿真 (编译→仿真→波形检查)
-├── Makefile                                  # make 自动化入口 (make sim / make clean)
-├── scripts/
-│   ├── sim.tcl                               # Vivado 自动化脚本 (建工程+仿真)
-│   └── make_tcl自动化使用说明.md             # make/tcl/bash 自动化使用文档
-├── log/                                      # [make sim 生成] vivado 日志
-├── vivado_prj/                               # [make sim 生成] Vivado 工程 (.xpr)
-├── sim_run/                                  # [make sim 生成] 仿真日志 + VCD 波形
+├── Makefile                                  # make 自动化入口 (project/sim/check/synth/all/clean)
+├── scripts/                                  # Vivado 自动化子脚本 (每步独立)
+│   ├── project.tcl                           #   建工程 (幂等) + 配置中心
+│   ├── add_sources.tcl                       #   加源文件 (幂等, 公共子脚本)
+│   ├── sim.tcl                               #   仿真主脚本
+│   ├── check_vcd.tcl                         #   VCD 波形检查子脚本
+│   ├── synth.tcl                             #   综合主脚本
+│   ├── make_tcl自动化使用说明.md             #   快速使用文档
+│   └── Vivado自动化脚本设计教程.md           #   环境搭建/架构/原理教程
+├── log/                                      # [生成] vivado 日志
+├── vivado_prj/                               # [生成] Vivado 工程 (.xpr)
+├── sim_run/                                  # [生成] 仿真日志 + VCD 波形
+├── synth_run/                                # [生成] 综合报告 + 网表 checkpoint
 └── old/                                      # 废弃 / 旧版文件
     ├── axi_full_master.v                     # [v1] 单 FSM 控制器
     ├── Data_send.v / Data_receive.v          # 旧版测试激励模块
@@ -127,12 +133,17 @@ user_rd_ready  ─────────────┐┌┐┌──
 # ① iverilog 流程 (快, 无需 Vivado)
 cd sim && ./run_sim.sh            # 编译 → 仿真 → 波形检查 → 打开 gtkwave
 
-# ② Vivado 自动化流程 (make + tcl, 自动建工程 + xsim 仿真)
-make sim                          # 一键: 建工程 → 编译 → 仿真 → ALL PASS → 波形
-make clean                        # 删除日志与产物 (log/ vivado_prj/ sim_run/)
+# ② Vivado 自动化流程 (make + tcl, 每步独立子脚本)
+make all                         # 全流程: 建工程 → 仿真(+VCD检查) → 综合
+make sim                         # 仿真: 建/开工程 + xsim 仿真 + VCD 波形检查
+make synth                       # 综合: synth_design + 报告 + 网表 checkpoint
+make check                       # 仅检查已有 VCD 波形 (不启动 Vivado)
+make project                     # 仅创建工程 (已存在则复用)
+make clean                       # 删除日志与全部产物
 ```
 
-> 详细说明见 [scripts/make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md)。
+> 详细说明见 [scripts/make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md)，
+> 环境搭建与脚本原理见 [scripts/Vivado自动化脚本设计教程.md](scripts/Vivado自动化脚本设计教程.md)。
 
 ---
 
@@ -146,4 +157,5 @@ make clean                        # 删除日志与产物 (log/ vivado_prj/ sim_
 | [tb_design_plan.md](doc/tb_design_plan.md) | Testbench 设计 (23 个测试用例) |
 | [outstanding_design.md](doc/outstanding_design.md) | Outstanding 事务支持设计 |
 | [out_of_order_design.md](doc/out_of_order_design.md) | Out-of-Order 响应支持设计 |
-| [make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md) | make/tcl/bash 自动化 Vivado 建工程+仿真 |
+| [make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md) | make/tcl/bash 自动化快速使用 |
+| [Vivado自动化脚本设计教程.md](scripts/Vivado自动化脚本设计教程.md) | 环境搭建 → 脚本架构 → 原理教程 |

@@ -90,7 +90,6 @@ module axi_rd_master #(
     always @(posedge M_AXI_ACLK) begin
         if (M_AXI_ARESETN == 1'b0) begin
             state           <= IDLE;
-            rd_len_latched  <= 0;
         end else begin
             case (state)
                 IDLE: begin
@@ -116,7 +115,10 @@ module axi_rd_master #(
     // 长度 / 突发类型锁存
     //===================================================================
     always @(posedge M_AXI_ACLK) begin
-        if (rd_start) begin
+        if (M_AXI_ARESETN == 1'b0) begin
+            rd_len_latched   <= 0;   // 复位合并到本块, 避免跨 always 多驱动 (综合报 multi-driven)
+            rd_burst_latched <= 2'b01;  // 默认 INCR
+        end else if (rd_start) begin
             rd_len_latched   <= rd_len_in;
             rd_burst_latched <= (rd_burst_type === 2'bxx) ? 2'b01 : rd_burst_type;
         end

@@ -11,7 +11,7 @@
 `timescale 1ns / 1ns
 
 module fifo_async #(
-    parameter string MODE       = "FWFT",   // "FWFT" 或 "STANDARD"
+    parameter integer MODE      = 0,        // 0=FWFT, 1=STANDARD (Vivado 综合不支持 string 参数)
     parameter int    DATA_WIDTH = 8,
     parameter int    DEPTH      = 32,
     parameter int    ADDR_WIDTH = 5         // $clog2(DEPTH), 地址位宽
@@ -127,7 +127,7 @@ module fifo_async #(
 
     // 读指针更新 — 仅当 rd_en 有效且"对外"非空时
     wire rd_allow;
-    assign rd_allow = rd_en && !(MODE == "FWFT" ? !fwft_valid : std_empty);
+    assign rd_allow = rd_en && !(MODE == 0 ? !fwft_valid : std_empty);
 
     always @(posedge rd_clk) begin
         if (rd_allow) begin
@@ -170,8 +170,8 @@ module fifo_async #(
     //===================================================================
     // 输出选择 (FWFT / Standard)
     //===================================================================
-    assign dout          = (MODE == "FWFT") ? fwft_dout : ram_dout;
-    assign empty         = (MODE == "FWFT") ? !fwft_valid : std_empty;
+    assign dout          = (MODE == 0) ? fwft_dout : ram_dout;
+    assign empty         = (MODE == 0) ? !fwft_valid : std_empty;
     assign almost_empty  = (rd_ptr_bin + 2'd1 >= wr_ptr_bin_synced);
 
 endmodule

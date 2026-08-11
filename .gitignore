@@ -1,6 +1,7 @@
-# Vivado 工程与仿真生成物 (make sim 自动生成, 可随时重建)
+# Vivado 工程与仿真/综合生成物 (make 自动生成, 可随时重建)
 vivado_prj/
 sim_run/
+synth_run/
 xsim.dir/
 .Xil/
 *.log
