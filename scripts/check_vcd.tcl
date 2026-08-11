@@ -20,17 +20,27 @@
 proc run_vcd_check {} {
     set vcd [file normalize ./sim_run/tb_axi_master_simple.vcd]
     if {![file exists $vcd]} {
-        error "VCD 波形不存在: $vcd (请先执行 make sim)"
+        error "VCD file not found: $vcd (run make sim first)"
     }
     set log_file [file normalize ./sim/check_vcd.log]
-    puts "INFO: 运行 check_vcd.py 检查波形 (日志 -> sim/check_vcd.log)"
-    # >& 把 python 的 stdout+stderr 全部重定向到日志文件
-    exec [file normalize $::python_exe] [file normalize ./sim/check_vcd.py] $vcd \
-        >& [file nativename $log_file]
-    # 回显日志到控制台 (保持 make 输出可见)
-    set fp [open $log_file r]
-    puts [read $fp]
+    puts "INFO: check_vcd.py running (log -> sim/check_vcd.log)"
+    # 编码处理: Windows 上 python 输出按系统 locale (中文系统=GBK),
+    # 用 exec 捕获 (Tcl 自动按系统编码解码为 Unicode), 再转 UTF-8 写日志,
+    # 保证 VSCode (默认 UTF-8) 打开日志正常
+    if {[catch {exec [file normalize $::python_exe] \
+            [file normalize ./sim/check_vcd.py] $vcd} out]} {
+        # 检查失败: 写日志后抛错 (阻断 make)
+        set fp [open $log_file w]
+        fconfigure $fp -encoding utf-8
+        puts $fp $out
+        close $fp
+        error $out
+    }
+    set fp [open $log_file w]
+    fconfigure $fp -encoding utf-8
+    puts $fp $out
     close $fp
-    puts "INFO: VCD 检查通过 (ALL PASS)"
+    puts $out
+    puts "INFO: VCD check passed (ALL PASS)"
     return 0
 }

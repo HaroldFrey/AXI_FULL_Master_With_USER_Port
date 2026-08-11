@@ -50,7 +50,10 @@ D:/App_install_Lcoation/make/bin/make.exe --version    # GNU Make 4.4.1
 > ⚠️ **Windows Git Bash 不自带 make**（便携版 Git 无此组件）。
 > 加入 PATH：PowerShell 执行
 > `[Environment]::SetEnvironmentVariable("Path", $env:Path + ";D:\App_install_Lcoation\make\bin", "User")`
-> **新终端生效**（旧终端不受影响）。
+>
+> **实测经验**：重开终端可能仍不生效——Windows 新进程从**父进程**继承环境，
+> 已运行的终端主进程（Windows Terminal / VSCode）缓存旧 PATH，新开标签页照样继承旧的。
+> 要么完全退出终端程序（含后台进程）再开，要么直接用 `export PATH="/d/App_install_Lcoation/make/bin:$PATH"` 或全路径调用。
 
 ### 2.2 Vivado 2019.2（核心工具）
 
@@ -328,6 +331,32 @@ impl:
 | python 无输出退出码 49 | Microsoft Store 占位符 | 装真 Python（embeddable） |
 | 日志/backup 文件散落 | Vivado 默认写 cwd | `-log`/`-journal` 指到 log/ |
 | 偶发 `couldn't read retarget_vhdl.tcl` | 杀软瞬断文件锁 | 重跑即可 |
+| python 输出文件中文乱码 | Windows 上 python 按系统 locale(GBK) 写重定向文件 | tcl exec 捕获 → `fconfigure -encoding utf-8` 转码写文件 |
+| `PYTHONIOENCODING` 环境变量不生效 | **embeddable python 隔离模式**：`python312._pth` 存在时忽略所有 PYTHON* 环境变量 | 不用环境变量：`python -X utf8` 命令行开关 / exec 捕获转码 |
+| `make check` 不改 check_vcd.tcl 也能乱码 | make check 直接跑 python + tee，不经过 Vivado/tcl | 补 `-X utf8` 开关即可 |
+| Vivado 输出 INFO 中文乱码 | Vivado 按 ANSI(GBK) 读 tcl 源码，中文一进来就乱 | **暂方案**：所有打印改英文（ASCII 零编码问题）；中文支持记录在案，待解决 |
+| 终端显示乱码 | UTF-8 终端渲染 GBK 字节 | 让输出统一 UTF-8（-X utf8 / tcl 转码）|
+
+### ⚠️ 未决问题：tcl 脚本中文打印乱码（已记录，待以后解决）
+
+**现象**：tcl 脚本里 puts 中文（无论 UTF-8 源码还是 `\uXXXX` 转义），输出到日志/终端均乱码。
+
+**排查结论**（2026-08-12，全部实测验证）：
+
+| 尝试 | 结果 |
+|------|------|
+| `source -encoding utf-8` 读子脚本 | ❌ Vivado 的 source 忽略该参数（proc 内字符串仍按 GBK 处理）|
+| `fconfigure stdout -encoding utf-8` | ❌ 对 `\uXXXX` 解析的 Unicode 无效（输出仍按 GBK 编码）；对真中文是"GBK 错读往返"巧合 |
+| UTF-8 BOM 文件头 | ❌ Vivado 不识别 BOM，BOM 字节被当命令前缀，第一行直接报错 |
+| 主脚本真中文（UTF-8 源码） | ❌ 源码被按 GBK 错读，多字节字符边界错位，部分字节被替换为 `?`（内容损坏）|
+| 主脚本 `\uXXXX` 转义 | ⚠️ 内容正确但输出 GBK 编码（配合 iconv 管道可转 UTF-8，但源码不可读）|
+
+**根因**：Vivado 2019.2 的 Tcl 8.5 在 Windows 上按系统 ANSI 代码页（GBK）读取 .tcl 源码，
+且 puts 对 Unicode 字符串按系统编码输出，脚本侧无法强制 UTF-8。
+
+**当前方案**：所有 tcl 打印统一英文（ASCII 在任何编码下正确，日志全为 UTF-8/ASCII）。
+**遗留**：tcl 中文打印支持留待以后解决（如换 Vivado 新版本、或研究 Vivado Tcl 的
+`encoding system` 设置对 stdout 的影响）。
 
 ---
 

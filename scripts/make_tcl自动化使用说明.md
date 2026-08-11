@@ -107,6 +107,7 @@ INFO: VCD 检查通过 (ALL PASS)
 ```
 项目根/
 ├── log/       [生成] vivado_*.log / *.jou   (Vivado 会话日志)
+├── make_run/  [生成] project/sim/synth/check 每次命令的打印信息
 ├── vivado_prj/ [生成] axi_full_master.xpr    (工程, 可 GUI 打开)
 ├── sim_run/   [生成] xvlog/xelab/xsim 日志 + tb_axi_master_simple.vcd 波形
 ├── synth_run/ [生成] utilization.rpt / timing.rpt / post_synth.dcp
@@ -115,6 +116,7 @@ INFO: VCD 检查通过 (ALL PASS)
 
 | 文件 | 来源 | 用途 |
 |------|------|------|
+| `make_run/sim.log` | make sim 输出 tee 存档 | make 打印信息 (终端+文件同步) |
 | `sim_run/xsim.log` | xsim | 仿真日志 (**ALL PASS 在这**) |
 | `sim_run/tb_axi_master_simple.vcd` | TB `$dumpfile` | 波形, GTKWave 可打开 |
 | `synth_run/utilization.rpt` | report_utilization | 资源利用率 |
@@ -133,7 +135,11 @@ Vivado 2019.2 的 `launch_simulation` 在部分 Windows 环境（如 Win11）报
 
 ### Q2: 输出中文乱码？
 
-Vivado 输出按本地编码（GBK）。终端执行 `chcp 65001` 后再跑；乱码不影响功能。
+**当前状态**：tcl 脚本打印已统一为英文，日志全部 UTF-8/ASCII 无乱码 ✅
+（python 检查输出用 `-X utf8` 强制 UTF-8，正常显示中文）。
+
+**遗留问题**（已记录）：Vivado 读 tcl 源码按 GBK，tcl 打印中文乱码无法根治
+（详见教程文档 §7"未决问题"一节，含全部尝试与结论）。
 
 ### Q3: 换测试平台 / 换器件？
 
@@ -142,8 +148,20 @@ Vivado 输出按本地编码（GBK）。终端执行 `chcp 65001` 后再跑；�
 
 ### Q4: make 命令找不到？
 
-新装的 PATH 需**重开终端**生效；或临时用全路径：
-`D:/App_install_Lcoation/make/bin/make.exe sim`
+**实测结论：重开终端有时不生效**（终端可能缓存了旧环境快照），以下按推荐度排序：
+
+```bash
+# ① 当前终端临时加 PATH (最稳, 实测有效)
+export PATH="/d/App_install_Lcoation/make/bin:$PATH"
+make clean
+
+# ② 全路径直接调用
+D:/App_install_Lcoation/make/bin/make.exe clean
+```
+
+> 若想一劳永逸：确认用户 PATH 已含 `D:\App_install_Lcoation\make\bin`
+> （PowerShell: `[Environment]::GetEnvironmentVariable("Path","User")`），
+> 然后**完整退出并重开终端程序**（若在 VSCode 里则重载窗口）。
 
 ---
 

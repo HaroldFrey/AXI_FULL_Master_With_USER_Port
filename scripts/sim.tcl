@@ -10,11 +10,14 @@
 #       手动按非工程流程调用 xvlog → xelab → xsim (全部绝对路径)
 #===============================================================================
 
+# 统一 stdout 为 UTF-8 (Windows 默认 ANSI/GBK, 会导致日志乱码)
+fconfigure stdout -encoding utf-8
+
 # 复用子脚本 (用 info script 定位, 与调用目录无关)
+# -encoding utf-8: Vivado 默认按系统编码(GBK)读 tcl 源码, 必须显式指定
 set script_dir [file dirname [file normalize [info script]]]
-source [file join $script_dir project.tcl]
-source [file join $script_dir add_sources.tcl]
-source [file join $script_dir check_vcd.tcl]
+source -encoding utf-8 [file join $script_dir project.tcl]
+source -encoding utf-8 [file join $script_dir add_sources.tcl]
 
 #------------------------------------------------------------------------------
 # 1) 工程准备 (幂等: 已存在则复用, 不重建)
@@ -46,21 +49,23 @@ set lib "xil_defaultlib"
 #       注意: 命令字符串用 concat 构建 ({}* 展开在字符串内不生效)
 set cd_cmd "cd /d [file nativename $work_dir] &&"
 
-puts "INFO: xvlog 编译 (RTL + TB)"
-exec cmd /c [concat $cd_cmd xvlog --incr --relax -sv -work $lib -log xvlog.log \
-    {*}$rtl_files {*}$tb_files]
+puts "INFO: xvlog compile (RTL + TB)"
+# 捕获 exec 输出再 puts: 子进程直接写 stdout 的字节不经过 fconfigure (编码不统一),
+# 捕获时 Tcl 按系统编码(GBK)解码, puts 按 UTF-8 输出, 保证日志编码一致
+set _o [exec cmd /c [concat $cd_cmd xvlog --incr --relax -sv -work $lib -log xvlog.log \
+    {*}$rtl_files {*}$tb_files]]
 
-puts "INFO: xelab 链接顶层 tb_axi_master_simple"
-exec cmd /c [concat $cd_cmd xelab --incr --relax -debug typical -s tb_sim -log xelab.log \
-    $lib.tb_axi_master_simple]
+puts "INFO: xelab link top tb_axi_master_simple"
+set _o [exec cmd /c [concat $cd_cmd xelab --incr --relax -debug typical -s tb_sim -log xelab.log \
+    $lib.tb_axi_master_simple]]
 
-puts "INFO: xsim 运行仿真 (TB 内 \$finish 自动结束)"
-exec cmd /c [concat $cd_cmd xsim tb_sim -R -log xsim.log]
+puts "INFO: xsim run (TB \$finish ends)"
+set _o [exec cmd /c [concat $cd_cmd xsim tb_sim -R -log xsim.log]]
 
 #------------------------------------------------------------------------------
 # 3) 收尾: 打印结果摘要 + 保存波形
 #------------------------------------------------------------------------------
-puts "============ 仿真结果摘要 ============"
+puts "============ SIMULATION RESULT ============"
 set log_fp [open [file join $work_dir xsim.log] r]
 while {[gets $log_fp line] >= 0} {
     if {[regexp -nocase {PASS|FAIL|ERROR|finish} $line]} { puts "  $line" }
@@ -70,16 +75,12 @@ puts "====================================="
 
 set vcd [file join $work_dir tb_axi_master_simple.vcd]
 if {[file exists $vcd]} {
-    puts "INFO: 波形已保存 -> $vcd"
+    puts "INFO: VCD saved -> $vcd"
 } else {
-    puts "WARNING: 未找到 VCD 波形文件 (TB 内 \$dumpfile 未生效?)"
+    puts "WARNING: VCD not found (TB \$dumpfile not effective?)"
 }
 
-#------------------------------------------------------------------------------
-# 4) VCD 波形检查 (独立子脚本 check_vcd.tcl)
-#------------------------------------------------------------------------------
-puts "INFO: 开始 VCD 波形检查"
-run_vcd_check
-
+# 说明: VCD 波形检查已独立为步骤 (make check / make all 最后一步),
+#       sim.tcl 只负责仿真本身, 见 scripts/check_vcd.tcl
 close_project
 exit

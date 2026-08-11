@@ -59,7 +59,8 @@
 │   ├── synth.tcl                             #   综合主脚本
 │   ├── make_tcl自动化使用说明.md             #   快速使用文档
 │   └── Vivado自动化脚本设计教程.md           #   环境搭建/架构/原理教程
-├── log/                                      # [生成] vivado 日志
+├── log/                                      # [生成] vivado 会话日志
+├── make_run/                                 # [生成] 每次 make 命令的打印信息
 ├── vivado_prj/                               # [生成] Vivado 工程 (.xpr)
 ├── sim_run/                                  # [生成] 仿真日志 + VCD 波形
 ├── synth_run/                                # [生成] 综合报告 + 网表 checkpoint

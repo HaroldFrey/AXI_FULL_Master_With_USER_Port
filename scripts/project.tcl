@@ -11,6 +11,9 @@
 # 配置说明: 工程名 / 目录 / 器件型号在本文件顶部, 改这里全局生效
 #===============================================================================
 
+# 统一 stdout 为 UTF-8 (Windows 默认 ANSI/GBK, 会导致日志乱码)
+fconfigure stdout -encoding utf-8
+
 #------------------------------------------------------------------------------
 # 全局配置 (所有脚本共享)
 #------------------------------------------------------------------------------
@@ -34,10 +37,10 @@ proc ensure_project {} {
         return
     }
     if {[file exists $xpr]} {
-        puts "INFO: 打开已有工程 $xpr"
+        puts "INFO: Open existing project $xpr"
         open_project $xpr
     } else {
-        puts "INFO: 创建工程 $::prj_name (part=$::prj_part)"
+        puts "INFO: Create project $::prj_name (part=$::prj_part)"
         create_project $::prj_name $::prj_dir -part $::prj_part -force
     }
 }
