@@ -14,6 +14,7 @@
 
 #------------------------------------------------------------------------------
 # run_vcd_check — 运行 VCD 波形检查
+#   检查日志: 重定向到 sim/check_vcd.log (不改 py 脚本, 用 tcl 重定向实现)
 #   返回: 0 = 全部通过; 抛错 = 失败 (VCD 缺失 / 检查不通过)
 #------------------------------------------------------------------------------
 proc run_vcd_check {} {
@@ -21,8 +22,15 @@ proc run_vcd_check {} {
     if {![file exists $vcd]} {
         error "VCD 波形不存在: $vcd (请先执行 make sim)"
     }
-    puts "INFO: 运行 check_vcd.py 检查波形"
-    exec [file normalize $::python_exe] [file normalize ./sim/check_vcd.py] $vcd
+    set log_file [file normalize ./sim/check_vcd.log]
+    puts "INFO: 运行 check_vcd.py 检查波形 (日志 -> sim/check_vcd.log)"
+    # >& 把 python 的 stdout+stderr 全部重定向到日志文件
+    exec [file normalize $::python_exe] [file normalize ./sim/check_vcd.py] $vcd \
+        >& [file nativename $log_file]
+    # 回显日志到控制台 (保持 make 输出可见)
+    set fp [open $log_file r]
+    puts [read $fp]
+    close $fp
     puts "INFO: VCD 检查通过 (ALL PASS)"
     return 0
 }

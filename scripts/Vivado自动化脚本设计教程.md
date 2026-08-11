@@ -240,6 +240,7 @@ xsim tb_sim -R  运行仿真 (TB 内 $finish 自动结束) → xsim.log + VCD
 提取 xsim.log 中 PASS/FAIL/ERROR 行 → 结果摘要
   ↓
 check_vcd.py 解析 VCD → 4 项检查 (TB判定/写次数/读次数/数据抽查)
+  输出重定向 → sim/check_vcd.log (Tcl exec 的 >& 重定向, py 脚本无改动)
 ```
 
 为什么不用 `launch_simulation`：2019.2 在部分 Windows 环境 spawn 子进程报

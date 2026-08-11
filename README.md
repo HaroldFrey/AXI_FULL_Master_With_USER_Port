@@ -134,7 +134,7 @@ user_rd_ready  ─────────────┐┌┐┌──
 cd sim && ./run_sim.sh            # 编译 → 仿真 → 波形检查 → 打开 gtkwave
 
 # ② Vivado 自动化流程 (make + tcl, 每步独立子脚本)
-make all                         # 全流程: 建工程 → 仿真(+VCD检查) → 综合
+make all                         # 全流程: 建工程 → 仿真(+VCD检查) → 综合 → 最终检查
 make sim                         # 仿真: 建/开工程 + xsim 仿真 + VCD 波形检查
 make synth                       # 综合: synth_design + 报告 + 网表 checkpoint
 make check                       # 仅检查已有 VCD 波形 (不启动 Vivado)

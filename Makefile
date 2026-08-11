@@ -6,7 +6,7 @@
 #   make sim       # 仿真: 自动建/开工程 + 加源文件 + xsim 仿真 + VCD 波形检查
 #   make check     # 仅检查已有 VCD 波形 (不启动 Vivado, 快)
 #   make synth     # 综合: 自动建/开工程 + 加源文件 + synth_design
-#   make all       # 全流程: project → sim → synth (不执行 clean)
+#   make all       # 全流程: project → sim → synth → check (不执行 clean)
 #   make clean     # 删除日志目录与所有输出产物 (工程/仿真/综合/波形)
 #
 # 前提:
@@ -27,7 +27,7 @@ LOG_DIR := log
 
 .PHONY: project sim check synth all clean
 
-all: project sim synth
+all: project sim synth check
 
 # 仅检查已有 VCD 波形 (等价于 make sim 内置的检查步骤, 不启动 Vivado)
 check:
@@ -55,4 +55,4 @@ clean:
 	rm -rf $(LOG_DIR) vivado_prj sim_run synth_run xsim.dir .Xil \
 		vivado*.log vivado*.jou vivado_*.backup.jou vivado_*.backup.log \
 		webtalk* xsim.jou xsim_*.backup.jou xelab.jou xvlog.jou \
-		*.xsim *.wdb *.pb *.vcd tb_sim
+		*.xsim *.wdb *.pb *.vcd tb_sim sim/check_vcd.log

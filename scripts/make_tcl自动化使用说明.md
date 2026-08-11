@@ -10,7 +10,7 @@
 在**项目根目录**执行（Git Bash 或任何终端）：
 
 ```bash
-make all       # 全流程: 建工程 → 仿真 → 综合 (不执行 clean)
+make all       # 全流程: 建工程 → 仿真 → 综合 → 最终检查 (不执行 clean)
 make sim       # 仿真: 建/开工程 + xsim 仿真 + VCD 波形检查
 make check     # 仅检查已有 VCD 波形 (不启动 Vivado, 快)
 make synth     # 综合: 建/开工程 + synth_design + 报告
@@ -32,6 +32,7 @@ INFO: VCD 检查通过 (ALL PASS)
 
 - **xsim 结果** `ALL PASS` = TB 5 个用例全部通过
 - **VCD 检查通过** = check_vcd.py 4 项检查（TB 判定/读写事务次数/数据抽查）全过
+- **检查日志**保存在 `sim/check_vcd.log`（每次检查覆盖写入）
 
 ---
 
