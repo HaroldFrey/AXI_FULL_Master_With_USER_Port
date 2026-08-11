@@ -48,7 +48,15 @@
 ├── sim/
 │   ├── tb_axi_master.sv                      # 顶层 Testbench (23 个用例)
 │   ├── axi_slave_bfm.sv                      # AXI Slave BFM
-│   └── tb_pkg.sv                             # 公共参数 / 时钟场景 / Scoreboard
+│   ├── tb_pkg.sv                             # 公共参数 / 时钟场景 / Scoreboard
+│   └── run_sim.sh                            # iverilog 一键仿真 (编译→仿真→波形检查)
+├── Makefile                                  # make 自动化入口 (make sim / make clean)
+├── scripts/
+│   ├── sim.tcl                               # Vivado 自动化脚本 (建工程+仿真)
+│   └── make_tcl自动化使用说明.md             # make/tcl/bash 自动化使用文档
+├── log/                                      # [make sim 生成] vivado 日志
+├── vivado_prj/                               # [make sim 生成] Vivado 工程 (.xpr)
+├── sim_run/                                  # [make sim 生成] 仿真日志 + VCD 波形
 └── old/                                      # 废弃 / 旧版文件
     ├── axi_full_master.v                     # [v1] 单 FSM 控制器
     ├── Data_send.v / Data_receive.v          # 旧版测试激励模块
@@ -113,14 +121,18 @@ user_rd_ready  ─────────────┐┌┐┌──
 
 ### 仿真运行
 
-```bash
-# Vivado 仿真 (含 FIFO IP)
-xsim tb_axi_master -R
+两套仿真流程：
 
-# 独立仿真 (使用 RTL FIFO, 无需 Vivado IP)
-vlog rtl/**/*.v sim/*.sv
-vsim tb_axi_master -c -do "run -all"
+```bash
+# ① iverilog 流程 (快, 无需 Vivado)
+cd sim && ./run_sim.sh            # 编译 → 仿真 → 波形检查 → 打开 gtkwave
+
+# ② Vivado 自动化流程 (make + tcl, 自动建工程 + xsim 仿真)
+make sim                          # 一键: 建工程 → 编译 → 仿真 → ALL PASS → 波形
+make clean                        # 删除日志与产物 (log/ vivado_prj/ sim_run/)
 ```
+
+> 详细说明见 [scripts/make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md)。
 
 ---
 
@@ -134,3 +146,4 @@ vsim tb_axi_master -c -do "run -all"
 | [tb_design_plan.md](doc/tb_design_plan.md) | Testbench 设计 (23 个测试用例) |
 | [outstanding_design.md](doc/outstanding_design.md) | Outstanding 事务支持设计 |
 | [out_of_order_design.md](doc/out_of_order_design.md) | Out-of-Order 响应支持设计 |
+| [make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md) | make/tcl/bash 自动化 Vivado 建工程+仿真 |

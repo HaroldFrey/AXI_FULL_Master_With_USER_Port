@@ -1,0 +1,14 @@
+# Vivado 工程与仿真生成物 (make sim 自动生成, 可随时重建)
+vivado_prj/
+sim_run/
+xsim.dir/
+.Xil/
+*.log
+*.jou
+*.vcd
+*.out
+*.wdb
+*.pb
+
+# iverilog 仿真生成物
+tb_sim
