@@ -151,6 +151,7 @@ make clean                       # 删除日志与全部产物
 
 | 文档 | 内容 |
 |------|------|
+| [AXI_FULL_Master_With_USER_Port使用说明.md](doc/AXI_FULL_Master_With_USER_Port使用说明.md) | **模块使用说明**（端口/时序/使用流程/注意事项）|
 | [architecture.md](doc/architecture.md) | 完整架构设计、模块接口、数据流 |
 | [issue_tracker.md](doc/issue_tracker.md) | 16 个问题的发现、分析与修复记录 |
 | [fifo_design.md](doc/fifo_design.md) | 异步 FIFO 设计 (格雷码 CDC) |
