@@ -79,7 +79,6 @@ module axi_rd_master #(
     // 内部寄存器
     //===================================================================
     reg                                     state;
-    reg     [31:0]                          rd_cnt;
     reg     [C_M_AXI_RD_LEN_WIDTH-1 : 0]    rd_len_latched;
     reg     [1 : 0]                         rd_burst_latched;
     reg                                     rd_data_flag;
@@ -196,19 +195,6 @@ module axi_rd_master #(
             end
         end else begin
             M_AXI_RREADY <= 1'b0;
-        end
-    end
-
-    //===================================================================
-    // 读数据计数器
-    //===================================================================
-    always @(posedge M_AXI_ACLK) begin
-        if (M_AXI_ARESETN == 1'b0) begin
-            rd_cnt <= 32'd0;
-        end else if (state != READ) begin
-            rd_cnt <= 32'd0;
-        end else if (M_AXI_RVALID & M_AXI_RREADY) begin
-            rd_cnt <= rd_cnt + 1;
         end
     end
 
