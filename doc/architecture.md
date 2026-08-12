@@ -41,13 +41,9 @@
 │   └── FIFO/
 │       └── fifo_async.v                    # 异步 FIFO（FWFT/Standard 双模式）
 ├── sim/
-│   └── top_tb.v                          # 顶层仿真 Testbench
-└── old/                                  # 废弃/旧版文件
-    ├── axi_full_master.v                 # [v1] 旧版单 FSM 控制器
-    ├── Data_send.v                       # 旧版测试数据发送
-    ├── Data_receive.v                    # 旧版测试数据接收
-    ├── axi_full_slave.v                  # 旧版 AXI Slave 模型
-    └── top_tb.v                          # 旧版 Testbench
+│   ├── complex/                          # 完整验证 TB（axi_slave_bfm / tb_axi_master / tb_pkg）
+│   └── tb_axi_master_simple.sv           # 简单 TB（iverilog 流程）
+└── （废弃旧版模块已删除，见 §4.5~4.7 历史说明）
 ```
 
 ---
@@ -62,7 +58,7 @@ top_tb (Testbench)
     ├── axi_wr_master                # 写通道控制器 (IDLE ↔ WRITE)
     └── axi_rd_master                # 读通道控制器 (IDLE ↔ READ)
 ```
-> 旧版模块 (`Data_send`, `Data_receive`, `axi_full_slave`, `axi_full_master`) 已移至 `old/` 目录。
+> 旧版模块 (`Data_send`, `Data_receive`, `axi_full_slave`, `axi_full_master`) 已随结构调整删除（见 §4.5~4.7 历史说明）。
 
 ---
 
@@ -137,7 +133,7 @@ axi_rd_master ──> Data_TX(FIFO) ──> user_rd_valid/data
 
 ### 4.2 axi_wr_master / axi_rd_master（读写控制器）
 
-> 原单 FSM 版本 `axi_full_master.v` 已移至 `old/`。当前架构为读写分离的双模块设计。
+> 原单 FSM 版本 `axi_full_master.v` 已随结构调整删除。当前架构为读写分离的双模块设计。
 
 **文件**: [axi_wr_master.v](../rtl/AXI_Full_Master_With_USER_Port/axi_wr_master.v) / [axi_rd_master.v](../rtl/AXI_Full_Master_With_USER_Port/axi_rd_master.v)
 
@@ -359,11 +355,11 @@ clk_axi 域                       clk_rd 域
 
 ---
 
-### 4.5 Data_send（测试数据生成器）[已废弃]
+### 4.5 Data_send（测试数据生成器）[已删除]
 
-> **注意**: 此模块已移至 `old/` 目录，拟在新的测试架构中替换。
+> **注意**: 此模块已随结构调整删除，由完整 TB（sim/complex/）中的激励逻辑取代。
 
-**文件**: [Data_send.v](../rtl/Data_send.v)
+**文件**: `rtl/Data_send.v`（已删除）
 
 仿真测试用写数据激励模块。
 
@@ -371,11 +367,11 @@ clk_axi 域                       clk_rd 域
 - `work_start` 脉冲启动，完成后自动清零 `work_flag`
 - `valid = work_flag`，数据在握手成功时更新
 
-### 4.6 Data_receive（测试数据接收器）[已废弃]
+### 4.6 Data_receive（测试数据接收器）[已删除]
 
-> **注意**: 此模块已移至 `old/` 目录，拟在新的测试架构中替换。
+> **注意**: 此模块已随结构调整删除，由完整 TB（sim/complex/）中的 Scoreboard 取代。
 
-**文件**: [Data_receive.v](../rtl/Data_receive.v)
+**文件**: `rtl/Data_receive.v`（已删除）
 
 仿真测试用读数据接收模块。
 
@@ -383,11 +379,11 @@ clk_axi 域                       clk_rd 域
 - `re_ready = work_flag`：工作期间始终就绪
 - `re_data_out_vld` 仅在握手成功时有效
 
-### 4.7 axi_full_slave（AXI 从机存储模型）[已废弃]
+### 4.7 axi_full_slave（AXI 从机存储模型）[已删除]
 
-> **注意**: 此模块已移至 `old/` 目录，拟在新的测试架构中替换。
+> **注意**: 此模块已随结构调整删除，由 sim/complex/axi_slave_bfm.sv 取代。
 
-**文件**: [axi_full_slave.v](../rtl/axi_full_slave.v)
+**文件**: `rtl/axi_full_slave.v`（已删除）
 
 标准 AXI4-Full Slave 实现，用于仿真验证。
 

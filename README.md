@@ -46,9 +46,12 @@
 │   └── FIFO/
 │       └── fifo_async.v                      # 异步 FIFO (FWFT / Standard 双模式)
 ├── sim/
-│   ├── tb_axi_master.sv                      # 顶层 Testbench (23 个用例)
-│   ├── axi_slave_bfm.sv                      # AXI Slave BFM
-│   ├── tb_pkg.sv                             # 公共参数 / 时钟场景 / Scoreboard
+│   ├── complex/                              # 完整验证 TB (Vivado 流程)
+│   │   ├── tb_axi_master.sv                  #   顶层 Testbench (23 个用例)
+│   │   ├── axi_slave_bfm.sv                  #   AXI Slave BFM
+│   │   └── tb_pkg.sv                         #   公共参数 / 时钟场景 / Scoreboard
+│   ├── tb_axi_master_simple.sv               # 简单 TB (iverilog 流程)
+│   ├── check_vcd.py                          # VCD 波形检查脚本
 │   └── run_sim.sh                            # iverilog 一键仿真 (编译→仿真→波形检查)
 ├── Makefile                                  # make 自动化入口 (project/sim/check/synth/all/clean)
 ├── scripts/                                  # Vivado 自动化子脚本 (每步独立)
@@ -57,18 +60,14 @@
 │   ├── sim.tcl                               #   仿真主脚本
 │   ├── check_vcd.tcl                         #   VCD 波形检查子脚本
 │   ├── synth.tcl                             #   综合主脚本
-│   ├── make_tcl自动化使用说明.md             #   快速使用文档
-│   └── Vivado自动化脚本设计教程.md           #   环境搭建/架构/原理教程
+│   └── doc/                                  #   使用说明与教程
+│       ├── make_tcl自动化使用说明.md         #     快速使用文档
+│       └── Vivado自动化脚本设计教程.md       #     环境搭建/架构/原理教程
 ├── log/                                      # [生成] vivado 会话日志
 ├── make_run/                                 # [生成] 每次 make 命令的打印信息
 ├── vivado_prj/                               # [生成] Vivado 工程 (.xpr)
 ├── sim_run/                                  # [生成] 仿真日志 + VCD 波形
-├── synth_run/                                # [生成] 综合报告 + 网表 checkpoint
-└── old/                                      # 废弃 / 旧版文件
-    ├── axi_full_master.v                     # [v1] 单 FSM 控制器
-    ├── Data_send.v / Data_receive.v          # 旧版测试激励模块
-    ├── axi_full_slave.v                      # 旧版 Slave 存储模型
-    └── top_tb.v                              # 旧版 Testbench
+└── synth_run/                                # [生成] 综合报告 + 网表 checkpoint
 ```
 
 ---
@@ -143,8 +142,8 @@ make project                     # 仅创建工程 (已存在则复用)
 make clean                       # 删除日志与全部产物
 ```
 
-> 详细说明见 [scripts/make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md)，
-> 环境搭建与脚本原理见 [scripts/Vivado自动化脚本设计教程.md](scripts/Vivado自动化脚本设计教程.md)。
+> 详细说明见 [scripts/doc/make_tcl自动化使用说明.md](scripts/doc/make_tcl自动化使用说明.md)，
+> 环境搭建与脚本原理见 [scripts/doc/Vivado自动化脚本设计教程.md](scripts/doc/Vivado自动化脚本设计教程.md)。
 
 ---
 
@@ -158,5 +157,5 @@ make clean                       # 删除日志与全部产物
 | [tb_design_plan.md](doc/tb_design_plan.md) | Testbench 设计 (23 个测试用例) |
 | [outstanding_design.md](doc/outstanding_design.md) | Outstanding 事务支持设计 |
 | [out_of_order_design.md](doc/out_of_order_design.md) | Out-of-Order 响应支持设计 |
-| [make_tcl自动化使用说明.md](scripts/make_tcl自动化使用说明.md) | make/tcl/bash 自动化快速使用 |
-| [Vivado自动化脚本设计教程.md](scripts/Vivado自动化脚本设计教程.md) | 环境搭建 → 脚本架构 → 原理教程 |
+| [make_tcl自动化使用说明.md](scripts/doc/make_tcl自动化使用说明.md) | make/tcl/bash 自动化快速使用 |
+| [Vivado自动化脚本设计教程.md](scripts/doc/Vivado自动化脚本设计教程.md) | 环境搭建 → 脚本架构 → 原理教程 |
