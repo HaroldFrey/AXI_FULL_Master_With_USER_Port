@@ -3,7 +3,9 @@
 
 module AXI_FULL_Master_With_USER_Port #(
 	parameter       C_M_TARGET_SLAVE_BASE_ADDR      =   32'h00000000    ,//读写从机的基地址。
-	parameter       C_M_AXI_ID_WIDTH	            =   1               ,//ID信号位宽。
+	parameter       integer MAX_OUTSTANDING_WR      =   4               ,//写通道槽位数 (1~8, outstanding 事务数)
+	parameter       integer MAX_OUTSTANDING_RD      =   4               ,//读通道槽位数 (1~8, outstanding 事务数)
+	parameter       C_M_AXI_ID_WIDTH	            =   ((MAX_OUTSTANDING_WR > 1) ? $clog2(MAX_OUTSTANDING_WR) : 1),//ID信号位宽(自动适配槽位数)
 	parameter       C_M_AXI_ADDR_WIDTH	            =   32              ,//读、写地址位宽。
 	parameter       C_M_AXI_DATA_WIDTH	            =   8               ,//读、写数据位宽。
 	parameter       C_M_AXI_WR_LEN_WIDTH            =   8               ,//写突发长度位宽
@@ -25,6 +27,8 @@ module AXI_FULL_Master_With_USER_Port #(
     // --------------------------USER PORTS-------------------------------//
     input                                               user_wr_start   ,//写操作开始标志信号,每进行一次写操作拉高一次
     input                            	                user_rd_start   ,//读操作开始标志信号,每进行一次读操作拉高一次
+    output                                              user_wr_ready_start,//写通道有空闲槽位(可接受新写事务)
+    output                                              user_rd_ready_start,//读通道有空闲槽位(可接受新读事务)
 
     // intr wiyh Data_RX，use in write data
     input                                               user_wr_valid   ,//写数据有效标志信号
@@ -182,7 +186,8 @@ axi_wr_master  #(
     .C_M_AXI_WR_LEN_WIDTH       ( C_M_AXI_WR_LEN_WIDTH          ),
     .C_M_AXI_AWUSER_WIDTH       ( C_M_AXI_AWUSER_WIDTH          ),
     .C_M_AXI_WUSER_WIDTH        ( C_M_AXI_WUSER_WIDTH           ),
-    .C_M_AXI_BUSER_WIDTH        ( C_M_AXI_BUSER_WIDTH           )
+    .C_M_AXI_BUSER_WIDTH        ( C_M_AXI_BUSER_WIDTH           ),
+    .MAX_OUTSTANDING_WR         ( MAX_OUTSTANDING_WR            )
 )
 axi_wr_master_inst (
     .M_AXI_ACLK                 ( clk_axi                       ),
@@ -198,6 +203,7 @@ axi_wr_master_inst (
     .user_awuser                ( user_awuser                   ),
     .user_wuser                 ( user_wuser                    ),
     .wr_error                   ( user_wr_error                 ),
+    .wr_ready_start             ( user_wr_ready_start           ),
 
     .M_AXI_AWID                 ( M_AXI_AWID                    ),
     .M_AXI_AWADDR               ( M_AXI_AWADDR                  ),
@@ -233,7 +239,8 @@ axi_rd_master  #(
     .C_M_AXI_DATA_WIDTH         ( C_M_AXI_DATA_WIDTH            ),
     .C_M_AXI_RD_LEN_WIDTH       ( C_M_AXI_RD_LEN_WIDTH          ),
     .C_M_AXI_ARUSER_WIDTH       ( C_M_AXI_ARUSER_WIDTH          ),
-    .C_M_AXI_RUSER_WIDTH        ( C_M_AXI_RUSER_WIDTH           )
+    .C_M_AXI_RUSER_WIDTH        ( C_M_AXI_RUSER_WIDTH           ),
+    .MAX_OUTSTANDING_RD         ( MAX_OUTSTANDING_RD            )
 )
 axi_rd_master_inst (
     .M_AXI_ACLK                 ( clk_axi                       ),
@@ -248,6 +255,7 @@ axi_rd_master_inst (
     .data_out_vld               ( data_in_vld                   ),
     .user_aruser                ( user_aruser                   ),
     .rd_error                   ( user_rd_error                 ),
+    .rd_ready_start             ( user_rd_ready_start           ),
 
     .M_AXI_ARID                 ( M_AXI_ARID                    ),
     .M_AXI_ARADDR               ( M_AXI_ARADDR                  ),

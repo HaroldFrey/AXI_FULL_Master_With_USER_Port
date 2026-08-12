@@ -41,9 +41,14 @@ assign rd_fifo_full =  fifo_full;
 //valid
 assign rd_valid = (fifo_empty == 1'b0) ? 1'b1 : 1'b0 ;
 
-// FWFT 异步 FIFO (等效 Vivado FIFO Generator IP)
+// 异步 FIFO (等效 Vivado FIFO Generator IP)
+// 注意: 读侧用标准模式 (MODE=1) 而非 FWFT — FWFT 的预取/弹空依赖"读指针追平
+// 同步写指针"的精确判断, 在同步时钟 (同频同相) 且背靠背连续流水场景下, 写指针
+// 同步滞后 (2 拍) 会导致弹空误判与预取竞争 (读到未写入位置), 数据错位。
+// 标准模式 dout 组合直读 mem[rd_ptr], 无预取/弹空: "多余弹出"只是 rd_ptr 推进
+// (数据仍在 RAM), valid (empty) 滞后只造成等待, 数据不丢不错。
 fifo_async #(
-    .MODE       (0),           // 0=FWFT
+    .MODE       (1),           // 1=STANDARD (读侧; 见上注释)
     .DATA_WIDTH (C_M_AXI_DATA_WIDTH),
     .DEPTH      (32),
     .ADDR_WIDTH (5)

@@ -8,10 +8,14 @@ check_vcd.py — 解析 VCD 波形文件, 判断 AXI_FULL_Master_With_USER_Port 
 
 检查项:
   1. TB 判定: 仿真是否正常结束 (test_done), 测试结果 (test_pass)
-  2. 写事务次数: m_axi_bvalid 上升沿个数 == 4  (TC1/TC3/TC4/TC5 各一次写)
-  3. 读事务次数: m_axi_rlast 上升沿个数 == 4    (TC2/TC3/TC4/TC5 各一次读)
-  4. 数据抽查: 每次读事务首拍数据 (user_rd_valid 上升沿时刻的 user_rd_data_out)
-     应依次等于 0x10 / 0xA5 / 0x20 / 0x30 (与 tb_axi_master_simple.sv 的种子一致)
+  2. 写事务次数: m_axi_bvalid 上升沿个数 == 15
+     (TC1/3/4/5 各 1 + TC6 3 + TC8 2 + TC9 4 + TC10 2)
+  3. 读事务次数: m_axi_rlast 上升沿个数 == 20
+     (TC2/3/4/5 各 1 + TC6 3 + TC7 3 + TC8 4 + TC9 4 + TC10 2)
+  4. 数据抽查: 前 4 个读事务首拍数据 (user_rd_valid 上升沿时刻的 user_rd_data_out)
+     应依次等于 0x10 / 0xA5 / 0x20 / 0x30 (TC1-5 回归, 事务间 valid 下降可识别首拍)
+     注: TC6-10 为背靠背事务, user_rd_valid 跨事务可能保持 1 (无上升沿),
+     首拍识别不可靠 — 这些事务的数据正确性由 TB 逐拍比对 (test_pass) 保证
 
 说明:
   - 只使用 Python 标准库, 无需安装第三方包
@@ -139,7 +143,7 @@ def main():
     ap.add_argument("vcd", nargs="?", default="tb_axi_master_simple.vcd",
                     help="VCD 波形文件 (默认: tb_axi_master_simple.vcd)")
     ap.add_argument("--expect", default="0x10,0xA5,0x20,0x30",
-                    help="每次读事务首拍期望数据, 逗号分隔 (默认: 0x10,0xA5,0x20,0x30)")
+                    help="TC1-5 回归: 每次读事务首拍期望数据, 逗号分隔 (默认: 0x10,0xA5,0x20,0x30)")
     args = ap.parse_args()
 
     try:
@@ -193,36 +197,38 @@ def main():
 
     # ------------------------------------------------------------------
     # 2. 写事务次数: bvalid 上升沿 (每个写事务一次)
+    #    期望 15: TC1/3/4/5(4) + TC6(3) + TC8(2) + TC9(4) + TC10(2)
     # ------------------------------------------------------------------
     print("-" * 62)
-    print(" [2] 写事务次数 (m_axi_bvalid 上升沿, 期望 4)")
+    print(" [2] 写事务次数 (m_axi_bvalid 上升沿, 期望 15)")
     bv_id = find_id(sigs, "m_axi_bvalid")
     if bv_id is None:
         print("      [FAIL] 缺少 m_axi_bvalid 信号")
         failed += 1
     else:
         n_wr = len(find_rises(changes, [bv_id]))
-        if n_wr == 4:
+        if n_wr == 15:
             print(f"      bvalid 上升沿 = {n_wr} -> [PASS]")
         else:
-            print(f"      bvalid 上升沿 = {n_wr} -> [FAIL] (期望 4)")
+            print(f"      bvalid 上升沿 = {n_wr} -> [FAIL] (期望 15)")
             failed += 1
 
     # ------------------------------------------------------------------
     # 3. 读事务次数: rlast 上升沿 (每个读事务一次)
+    #    期望 20: TC2/3/4/5(4) + TC6校验(3) + TC7(3) + TC8(4) + TC9(4) + TC10(2)
     # ------------------------------------------------------------------
     print("-" * 62)
-    print(" [3] 读事务次数 (m_axi_rlast 上升沿, 期望 4)")
+    print(" [3] 读事务次数 (m_axi_rlast 上升沿, 期望 20)")
     rl_id = find_id(sigs, "m_axi_rlast")
     if rl_id is None:
         print("      [FAIL] 缺少 m_axi_rlast 信号")
         failed += 1
     else:
         n_rd = len(find_rises(changes, [rl_id]))
-        if n_rd == 4:
+        if n_rd == 20:
             print(f"      rlast 上升沿 = {n_rd} -> [PASS]")
         else:
-            print(f"      rlast 上升沿 = {n_rd} -> [FAIL] (期望 4)")
+            print(f"      rlast 上升沿 = {n_rd} -> [FAIL] (期望 20)")
             failed += 1
 
     # ------------------------------------------------------------------
@@ -237,11 +243,16 @@ def main():
         failed += 1
     else:
         rises = find_rises(changes, [rv_id])
-        print(f"      user_rd_valid 上升沿 = {len(rises)} (期望 {len(expect)})")
-        if len(rises) != len(expect):
-            print("      [FAIL] 读事务首拍次数与期望不符")
+        print(f"      user_rd_valid 上升沿 = {len(rises)} (前 {len(expect)} 个为 TC1-5 回归)")
+        if len(rises) < len(expect):
+            print("      [FAIL] 读事务首拍次数不足 (TC1-5 回归未完整)")
             failed += 1
         for i, t in enumerate(rises):
+            if i >= len(expect):
+                # 超出 TC1-5 的读 (TC6-10 背靠背, valid 连续无法识别首拍):
+                # 数据正确性由 TB 逐拍比对保证, 仅报告
+                print(f"      第 {i+1} 次读: 时刻 {t} {timescale} -> [TC6-10 事务, 仅报告]")
+                continue
             v = value_at(changes, rd_id, t)
             if v is None or v.lower() in ("x", "z") or not v:
                 print(f"      第 {i+1} 次读: 时刻 {t} {timescale} 数据={v} -> [FAIL] (未知值)")

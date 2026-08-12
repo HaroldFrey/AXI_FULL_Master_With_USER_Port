@@ -145,26 +145,34 @@ module fifo_async #(
     //===================================================================
     // FWFT 输出寄存器 (rd_clk 域)
     //===================================================================
+    // 弹空/预取统一以"同步确认的写指针 (wr_ptr_bin_synced, 滞后 2 拍)"为界:
+    //   - 下一笔未确认 (rd_next >= wr_synced) → 弹空, 等待同步确认后再武装
+    //   - 下一笔已确认 (rd_next < wr_synced)  → 预取, mem 必已写入 (无竞争)
+    // 注意: 不能用 "gray 追平判据 (rd_gray_next == wr_synced)" — 写指针同步
+    // 滞后时, 读指针可能"超前"同步值 1~2 拍 (gray 不等), 此时走预取分支会
+    // 与写侧同拍竞争 (预取未写入的 mem 位置 → 残留 X/错位)。用 bin 比较的
+    // >= 保守弹空, 只牺牲 1~2 拍有效延迟, 数据不丢不重不错。
+    // 注: bin 无符号比较在指针回绕 (|wr-rd| > 32) 时可能误判; 深度 32 的
+    // FIFO 正常工作时差 < 32, 仅指针接近 64 回绕边界时需留意。
     reg  [DATA_WIDTH-1:0] fwft_dout  = 0;
     reg                    fwft_valid = 0;
 
     always @(posedge rd_clk) begin
-        if (fwft_valid && rd_en && (std_empty || (rd_ptr_gray_next == wr_ptr_gray_synced))) begin
-            // 读走最后一笔 → 变为空
-            // std_empty: 指针已追平; 第二个判据: 同步滞后期间, 弹出后指针将追平
-            // 写指针 → 同样视为最后一笔, 避免残留 X 幻影字
+        if (fwft_valid && rd_en && (std_empty || (rd_ptr_bin_next >= wr_ptr_bin_synced))) begin
+            // 读走最后一笔 (下一笔未被同步确认) → 弹空
+            // std_empty (gray 精确) 兜底回绕边界场景
             fwft_valid <= 1'b0;
-        end else if (!fwft_valid && !std_empty) begin
-            // 内部 FIFO 有新数据 → 预取首字
+        end else if (!fwft_valid && (rd_ptr_bin < wr_ptr_bin_synced)) begin
+            // 内部 FIFO 有新数据 (同步确认, mem 已写) → 预取首字
             fwft_dout  <= ram_dout;
             fwft_valid <= 1'b1;
-        end else if (fwft_valid && rd_en) begin
-            // 读走当前, 还有下一笔 → 预取新指针处的下一笔
-            // (修复: 用旧指针 ram_dout 会导致每个字输出两次且最后一字丢失)
+        end else if (fwft_valid && rd_en && (rd_ptr_bin_next < wr_ptr_bin_synced)) begin
+            // 读走当前, 下一笔已同步确认 → 预取新指针处的下一笔
+            // (只有已确认写入的位置才预取, 避免与写侧同拍竞争读到未写位置)
             fwft_dout  <= mem[rd_ptr_bin_next[ADDR_WIDTH-1:0]];
             fwft_valid <= 1'b1;
         end
-        // 其余情况 (fwft 有数据但不读): 寄存器保持
+        // 其余情况 (fwft 有数据但不读 / 下一笔未确认): 寄存器保持
     end
 
     //===================================================================

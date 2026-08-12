@@ -2,7 +2,7 @@
 
 基于 FPGA 的 **AXI4-Full 协议主机模块**，封装简化的 USER Port 用户接口，将复杂 AXI 总线协议抽象为 Valid/Ready 握手 + Start 触发式接口。
 
-> **版本**: v2 (读写分离) | **更新**: 2026-07-23
+> **版本**: v2.1 (Outstanding 事务) | **更新**: 2026-08-12
 
 ---
 
@@ -20,6 +20,10 @@
 | USER 信号 | AWUSER / WUSER / ARUSER 可配置（参数化位宽） |
 | 反压 | 读写路径均支持流量控制（FIFO + AXI 握手） |
 | 仿真 | 独立 RTL FIFO（FWFT/Standard 双模式），脱离 Vivado IP |
+| Outstanding | ✅ 多事务在途：写/读独立参数 `MAX_OUTSTANDING_WR/RD`（1~8，默认 4），槽位表跟踪 |
+| 空闲槽指示 | ✅ `user_wr/rd_ready_start` 指示有空闲槽位（槽满时为 0，用户仅在此时可发 start） |
+| 写顺序约束 | AXI4 无 WID：W 数据顺序 = 事务 start 顺序（FIFO 天然保证） |
+| 读保序方案 | 同 ARID=0：从机按 AR 顺序返回 R 数据，Master 按槽位顺序匹配 |
 
 ---
 
@@ -33,7 +37,15 @@
 │   ├── issue_tracker.md                    #   问题跟踪文档 (16 个问题)
 │   ├── fifo_design.md                      #   FIFO 设计文档
 │   ├── tb_design_plan.md                   #   测试平台设计方案 (23 个用例)
-│   ├── outstanding_design.md               #   Outstanding 事务设计
+│   ├── outstanding_design/                 #   Outstanding 开发文档目录 (v2.1)
+│   │   ├── outstanding_需求分析.md          #     需求分析 (A0)
+│   │   ├── outstanding_设计方案.md          #     微架构设计方案 (A1)
+│   │   ├── outstanding_语法解析.md          #     关键语法解析 (A2)
+│   │   ├── outstanding_审查报告.md          #     审查循环报告 (A3, 3 轮)
+│   │   ├── outstanding_问题追踪.md          #     问题追踪 (O-01~O-12)
+│   │   ├── outstanding_最终报告.md          #     最终设计报告
+│   │   ├── outstanding_TB方案.md            #     测试方案 (TC1~TC10)
+│   │   └── outstanding_design.md            #     Outstanding 事务设计总览
 │   ├── out_of_order_design.md              #   Out-of-Order 响应设计
 │   └── 绘图.vsdx                           #   原始框图
 ├── rtl/
@@ -81,8 +93,8 @@ top_tb (Testbench)
     │   └── fifo_async
     ├── Data_TX                         # 读数据通路 + FWFT 异步 FIFO
     │   └── fifo_async
-    ├── axi_wr_master                   # 写通道控制器 (IDLE ↔ WRITE)
-    └── axi_rd_master                   # 读通道控制器 (IDLE ↔ READ)
+    ├── axi_wr_master                   # 写通道控制器 (槽位状态机: FREE→AW_PEND→W_DATA→B_WAIT)
+    └── axi_rd_master                   # 读通道控制器 (槽位状态机: FREE→AR_PEND→R_ACTIVE)
 ```
 
 ---
@@ -155,7 +167,7 @@ make clean                       # 删除日志与全部产物
 | [issue_tracker.md](doc/issue_tracker.md) | 16 个问题的发现、分析与修复记录 |
 | [fifo_design.md](doc/fifo_design.md) | 异步 FIFO 设计 (格雷码 CDC) |
 | [tb_design_plan.md](doc/tb_design_plan.md) | Testbench 设计 (23 个测试用例) |
-| [outstanding_design.md](doc/outstanding_design.md) | Outstanding 事务支持设计 |
+| [outstanding_design/](doc/outstanding_design/) | Outstanding 开发文档目录（需求分析 / 设计方案 / 审查报告 / 问题追踪 / 最终报告 / TB方案） |
 | [out_of_order_design.md](doc/out_of_order_design.md) | Out-of-Order 响应支持设计 |
 | [make_tcl自动化使用说明.md](scripts/doc/make_tcl自动化使用说明.md) | make/tcl/bash 自动化快速使用 |
 | [Vivado自动化脚本设计教程.md](scripts/doc/Vivado自动化脚本设计教程.md) | 环境搭建 → 脚本架构 → 原理教程 |
