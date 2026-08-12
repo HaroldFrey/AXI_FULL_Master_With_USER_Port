@@ -105,9 +105,9 @@ user_wr_error     ────────────────────�
 
 ### 步骤
 
-1. 设置 `user_wr_addr`、`user_wr_len`、`user_wr_burst_type`
-2. 发送 `user_wr_start` 单周期脉冲
-3. 在 `user_wr_valid & user_wr_ready` 握手时逐拍发送数据
+1. 设置 `user_wr_addr`、`user_wr_len`、`user_wr_burst_type`（与 start **同拍**给出即可，也可先稳定）
+2. 发送 `user_wr_start` 单周期脉冲（start 沿锁存配置）
+3. 在 `user_wr_valid & user_wr_ready` 握手时逐拍发送数据（可与 start 同时开始）
 4. 发送完毕，模块自动完成 AXI 写事务
 5. 检查 `user_wr_error`：若为高，BRESP 返回了非 OKAY 响应
 

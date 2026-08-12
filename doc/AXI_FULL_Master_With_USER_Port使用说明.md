@@ -107,17 +107,20 @@
 ### 4.1 写操作（三步）
 
 ```
-① 配置就绪（至少早于 start 一个周期）
+① 配置与 start 同拍给出（配置也可先稳定）
    user_wr_addr = 目标地址
    user_wr_len  = 突发长度
    user_wr_burst_type = 2'b01 (INCR)
+   user_wr_start = 1（单周期脉冲，与配置同拍有效即可）
 
-② 传输数据（与 start 无依赖）
+② start 沿锁存配置 → 模块进入写状态
+   └→ 配置在 start 拉高的时钟沿被采样锁存（同沿采样，无需提前一拍）
+
+③ 传输数据（与 start 无依赖，可与 ①② 同时进行）
    user_wr_valid=1 & user_wr_ready=1 时，一拍数据写入内部 FIFO
-   （推荐 start 前预填 FIFO，start 后 AW/W 零等待连续发出）
-
-③ 拉高 user_wr_start（单周期脉冲）
-   └→ 锁存配置 → 模块自动完成 AXI 写事务（AW→W→B）
+   （可 start 前预填 FIFO，start 后 AW/W 零等待连续发出；
+     也可 start 同时/随后边握手边写）
+   └→ 模块自动完成 AXI 写事务（AW→W→B）
    └→ 完成后自动回到空闲；BRESP≠OKAY 时 user_wr_error 拉高
 ```
 
@@ -138,9 +141,14 @@ user_wr_error     ────────────────────�
 ### 4.2 读操作（三步）
 
 ```
-① 配置就绪：user_rd_addr / user_rd_len / user_rd_burst_type
-② 拉高 user_rd_start（单周期脉冲）
-   └→ 锁存配置 → 模块自动发 AR → 从机返回 R 数据
+① 配置与 start 同拍给出（配置也可先稳定）
+   user_rd_addr = 目标地址
+   user_rd_len  = 突发长度
+   user_rd_burst_type = 2'b01 (INCR)
+   user_rd_start = 1（单周期脉冲，与配置同拍有效即可）
+
+② start 沿锁存配置 → 模块自动发 AR → 从机返回 R 数据
+
 ③ 接收数据：user_rd_valid=1 & user_rd_ready=1 时逐拍取走数据
    （RRESP≠OKAY 时 user_rd_error 拉高）
 ```
@@ -160,8 +168,8 @@ user_rd_ready  ─────────────┐┌┐┌──
 ## 5. 关键注意事项
 
 1. **start 是脉冲**：每笔事务 `user_wr_start` / `user_rd_start` 拉高一拍即可，不能保持电平
-2. **配置先于 start**：addr/len/burst_type 必须在 start 沿**之前稳定**（start 沿锁存）；锁存后可以修改（不影响本次事务）
-3. **数据不依赖 start**：数据通过握手写入 FIFO，可 start 前预填（推荐）或 start 后边写边发；AXI 侧 WVALID 需要 FIFO 非空
+2. **配置与 start 同拍即可**：addr/len/burst_type 与 start **同拍给出**（start 拉高的时钟沿采样锁存，沿前稳定即可，无需提前一拍）；锁存后可以修改（不影响本次事务）
+3. **数据可与 start 同时开始**：数据通过握手写入 FIFO，与 start 无依赖——可 start 前预填（推荐，AW/W 零等待）、与 start 同拍开始、或随后写入；AXI 侧 WVALID 需要 FIFO 非空
 4. **len 与实际数据拍数一致**：写 len 拍了几个数，AXI 侧就发几拍（WLAST 自动收尾）
 5. **握手必须完整**：`valid & ready` 同时为高才算一拍传输完成
 6. **USER 信号直通**：awuser/wuser/aruser 是组合直通，需要保持到对应 AXI 通道握手完成
@@ -193,10 +201,16 @@ make all
 
 ```systemverilog
 // ---- 一次写事务 ----
+// ① 配置与 start 同拍给出 (同拍有效, start 沿锁存)
+@(posedge clk_axi);
 user_wr_addr       = 32'h1000;      // 地址
 user_wr_len        = 8'd4;          // 长度 4
 user_wr_burst_type = 2'b01;         // INCR
-// 预填数据
+user_wr_start      = 1'b1;          // start 与配置同拍
+@(posedge clk_axi);
+user_wr_start = 1'b0;
+
+// ② 数据可同时/随后传输 (握手写入 FIFO)
 repeat (4) begin
     @(posedge clk_wr);
     user_wr_valid   = 1'b1;
@@ -205,19 +219,15 @@ repeat (4) begin
     @(posedge clk_wr);
     user_wr_valid = 1'b0;
 end
-// 发起事务
-@(posedge clk_axi);
-user_wr_start = 1'b1;
-@(posedge clk_axi);
-user_wr_start = 1'b0;
 // 等待完成（或检查 user_wr_error）
 
 // ---- 一次读事务 ----
+// 配置与 start 同拍给出
+@(posedge clk_axi);
 user_rd_addr       = 32'h1000;
 user_rd_len        = 8'd4;
 user_rd_burst_type = 2'b01;
-@(posedge clk_axi);
-user_rd_start = 1'b1;
+user_rd_start      = 1'b1;
 @(posedge clk_axi);
 user_rd_start = 1'b0;
 // 接收数据
